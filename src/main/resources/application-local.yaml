@@ -1,0 +1,129 @@
+spring:
+  batch:
+    # Datasource for Spring Batch (same as Spring Cloud Dataflow)
+    datasource:
+      name: batchDatasource
+      jdbc-url: jdbc:h2:mem:db
+      driver-class-name: org.h2.Driver
+      username: sa
+      maximum-pool-size: 10
+  jpa:
+    generate-ddl: false
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.DB2Dialect
+        format_sql: true
+        naming:
+          physical-strategy: org.springframework.boot.orm.jpa.hibernate.SpringPhysicalNamingStrategy
+  mail:
+    host: clientsmtpmail.internal.epo.org
+    port: 25
+  main:
+    allow-bean-definition-overriding: false
+
+batch:
+  incrementer:
+    addSystemTime: true
+    parametersToReset:
+      - SKIP_CLEANUP
+
+# Datasource for the application
+app:
+  datasource:
+    name: appDatasource
+    jdbc-url: jdbc:db2://db2srv6-i.internal.epo.org:60102/ddbi1_i:currentSchema=I2DBADM;
+    username: dopslu_i
+    password: KnatteFnatteTjatte
+    driver-class-name: com.ibm.db2.jcc.DB2Driver
+    maximum-pool-size: 10
+
+logging.level.org.hibernate.engine.jdbc.spi.SqlExceptionHelper: ERROR
+
+processing:
+  batch:
+    readOnly: true
+    inputEncoding: UTF-8
+    # The export name, mandatory, to be customized for each specific batch
+    exportName: pubDateUpdate
+    # The kibana index, mandatory, to be customized for each specific batch
+    trackingKibanaIndex: pubDateUpdate
+    workFolder: /Users/eldorado/Documents/infotel/data/export
+    maxAgeFtpFileInDays: 200
+    # Chunk size for a read/process/write (number of lines per chunk)
+    chunkSize: 500
+    maxParallelThreads: 1
+    sqlQuery: |
+      UPDATE TDO105_PATENT_PUB
+      SET PUBLICATION_DATE = ?, PUB_DATE_INPUT = ?, LAST_UPDATE = CURRENT_TIMESTAMP
+      WHERE PUB_RESERVE = ?
+      AND PUB_AUTH_CODE = ?
+      AND PUB_SEQ_NUMBER = ?
+      AND PUB_KIND_CODE = ?
+      AND PUB_KEY_SEQUENCE = ?
+
+# mandatory for each profile:
+naming.templates.inputConcatFile: "PUBDATEUPDATE_<TIMESTAMP>.txt"
+
+email:
+  environmentPrefix: ENDURANCE
+  from: docmaint@epo.org
+  to:
+    - denis.kalengawatshipamba@epo.org
+
+  exportLabel: ${processing.batch.exportName}
+  successSubject: "${email.exportLabel} Success"
+  successBody: "[<ENV>] Success ${email.exportLabel} <EOL>Job Id = <JOBID><EOL>Start = <START><EOL><REPORT>"
+  # the attached file path is relative to the workfolder
+  successAttachedFiles: ${processing.batch.exportName}_error.txt
+  errorSubject: "${email.exportLabel} Error"
+  errorBody: "[<ENV>] Error ${email.exportLabel} <EOL>Job Id = <JOBID><EOL>Start = <START><EOL><REPORT>"
+  errorAttachedFiles: ${processing.batch.exportName}_error.txt
+
+ftp:
+  dops:
+    protocol: FTP
+    host: EPOFTP.internal.epo.org
+    port: 21
+    username: VALIDRUN
+    password:  VALIDRUN
+    remote-dir: /VALIDRUN/ProcessBatch/PUBDATEUPDATE/TEST
+    create-missing-dirs: true
+    relative-folder-done: done
+    relative-folder-rejected: rejected
+    relative-folder-report: report
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dbtest
+app:
+  datasource:
+    jdbc-url: jdbc:db2://db2srv6-t.internal.epo.org:60266/ddbi1_t:currentSchema=D2DBADM;
+    username: dopslu_t
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: osa
+app:
+  datasource:
+    jdbc-url: jdbc:db2://db2srv6-o.internal.epo.org:60102/ddbi1_o:currentSchema=P0DBADM;
+    username: dopslu_o
+
+
+---
+spring:
+  config:
+    activate:
+      on-profile: withupdate
+processing:
+  batch:
+    readOnly: false
+
